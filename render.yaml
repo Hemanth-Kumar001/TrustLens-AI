@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: trustlens-ai-api
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && python bootstrap.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 180
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: TRUSTLENS_CORS_ORIGIN
+        value: https://trustlens-ai-web.onrender.com
+  - type: web
+    name: trustlens-ai-web
+    runtime: static
+    plan: free
+    region: singapore
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://trustlens-ai-api.onrender.com/api
