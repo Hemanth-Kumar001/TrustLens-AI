@@ -9,7 +9,7 @@ MANIFEST_PATH = PARTS_DIR / "manifest.json"
 
 def git_blob_sha1(text: str) -> str:
     data = text.encode("ascii")
-    header = f"blob {len(data)}\\0".encode("ascii")
+    header = f"blob {len(data)}\0".encode("ascii")
     return hashlib.sha1(header + data).hexdigest()
 
 def main():
