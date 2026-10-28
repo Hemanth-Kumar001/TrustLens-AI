@@ -1,0 +1,45 @@
+{
+  "gzip_sha256": "8bc4b06f69a110267096e121a26bad3f8b77772cf4b10767d8d7196790745c02",
+  "compressed_bytes": 98269,
+  "raw_bytes": 124029,
+  "base64_characters": 131028,
+  "quantization": "Per-tensor int8 quantization of floating checkpoint tensors; inference dequantizes to FP32.",
+  "architecture": "RetinaWatchCNN-ExpandedDS-v3",
+  "class_order": [
+    "No_DR",
+    "Mild",
+    "Moderate",
+    "Severe",
+    "Proliferate_DR"
+  ],
+  "part_lengths": {
+    "weights-000.b64": 8000,
+    "weights-001.b64": 11000,
+    "weights-002.b64": 11000,
+    "weights-003.b64": 11000,
+    "weights-004.b64": 11000,
+    "weights-005.b64": 11000,
+    "weights-006.b64": 11000,
+    "weights-007.b64": 11000,
+    "weights-008.b64": 11000,
+    "weights-009.b64": 11000,
+    "weights-010.b64": 11000,
+    "weights-011.b64": 11000,
+    "weights-012.b64": 2028
+  },
+  "part_sha1": {
+    "weights-000.b64": "c8cd97f585e773a88349330e04f701025ad9840a",
+    "weights-001.b64": "e2fbfed7d7fcee16d7ada15c465070868c2466ec",
+    "weights-002.b64": "666612f6f9f42e24f5e155f6b46f5469ed807762",
+    "weights-003.b64": "0d329951807754a4cb592a25f933c5c2cadebb4a",
+    "weights-004.b64": "b53f948ebe0e5f013ef38ca0ac700d0a86570424",
+    "weights-005.b64": "99fa668a49a01b9592e013e68803598e6ab54be0",
+    "weights-006.b64": "d672eafcab8c72c891bd15a801d424320e0c7062",
+    "weights-007.b64": "663af45ed4d73654bd944606198d253efbbc5fe9",
+    "weights-008.b64": "b793cadd6ac783e42bf7962e103f59853913fc6c",
+    "weights-009.b64": "9eeff4ac82b8507397def4370ef93b4515bf5a21",
+    "weights-010.b64": "9da5019b97e679f4c5c7acf220306ae69a84da2c",
+    "weights-011.b64": "698136923bb78b9cc958f686ef12ef7ed4365359",
+    "weights-012.b64": "d58b3d366d505d74c3ec247874929557443e4966"
+  }
+}
