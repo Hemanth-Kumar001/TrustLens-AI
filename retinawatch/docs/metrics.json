@@ -1,0 +1,22 @@
+{
+  "dataset_images": 3662,
+  "cleaned_unique_images": 3504,
+  "conflicting_duplicate_groups_excluded": 30,
+  "duplicate_copies_collapsed": 96,
+  "train_images": 2452,
+  "validation_images": 526,
+  "test_images": 526,
+  "classes": {
+    "No_DR": 1796,
+    "Mild": 338,
+    "Moderate": 922,
+    "Severe": 177,
+    "Proliferate_DR": 271
+  },
+  "test_accuracy": 0.7015209125475285,
+  "test_balanced_accuracy": 0.5640153452685421,
+  "test_macro_f1": 0.5163626152332222,
+  "test_quadratic_weighted_kappa": 0.7172653436096685,
+  "architecture": "RetinaWatchCNN-ExpandedDS-v3 trained from scratch; no pretrained weights.",
+  "class_performance_note": "Advanced classes were weakly detected and outputs require professional assessment."
+}
