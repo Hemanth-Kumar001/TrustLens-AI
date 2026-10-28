@@ -1,5 +1,7 @@
 # TrustLens AI
 
+🌐 **Live Website:** [Open TrustLens AI](https://trustlens-ai-web.onrender.com) · 💻 **Source Code:** [GitHub Repository](https://github.com/Hemanth-Kumar001/TrustLens-AI)
+
 **Review intelligence for better-informed product decisions.**
 
 TrustLens AI analyses pasted or uploaded product reviews, summarizes sentiment, surfaces recurring complaints and praised themes, and flags text that resembles the classes in a labelled training dataset.
