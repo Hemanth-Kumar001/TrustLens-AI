@@ -8,3 +8,8 @@ models/*.joblib
 .env
 .DS_Store
 frontend/.env
+
+# RetinaWatch user-supplied retinal images and local model artifacts
+retinawatch/data/
+retinawatch/backend/models/*.pt
+retinawatch/backend/models/*.pth
