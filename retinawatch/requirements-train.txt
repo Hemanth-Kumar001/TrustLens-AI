@@ -1,0 +1,2 @@
+-r backend/requirements.txt
+scikit-learn>=1.5,<2
