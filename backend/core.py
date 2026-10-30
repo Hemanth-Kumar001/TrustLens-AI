@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import re
 import pandas as pd
+import numpy as np
 import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression, SGDClassifier
@@ -57,7 +58,7 @@ def make_text_vectorizer():
         max_features=50000,
         sublinear_tf=True,
         strip_accents="unicode",
-        dtype="float32"
+        dtype=np.float32
     )
 
 
