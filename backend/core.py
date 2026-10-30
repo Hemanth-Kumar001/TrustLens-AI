@@ -8,7 +8,7 @@ from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.naive_bayes import MultinomialNB, ComplementNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import (
     accuracy_score, precision_recall_fscore_support, f1_score,
@@ -49,23 +49,20 @@ def load_dataset(path=DATASET):
     return df
 
 
-def make_text_pipeline(classifier):
-    """Build one consistent TF-IDF + classifier pipeline for fair comparison."""
-    return Pipeline([
-        ("tfidf", TfidfVectorizer(
-            ngram_range=(1, 2),
-            min_df=2,
-            max_features=50000,
-            sublinear_tf=True,
-            strip_accents="unicode",
-            dtype="float32"
-        )),
-        ("classifier", classifier)
-    ])
+def make_text_vectorizer():
+    """Create the same TF-IDF feature extractor for every classifier."""
+    return TfidfVectorizer(
+        ngram_range=(1, 2),
+        min_df=2,
+        max_features=50000,
+        sublinear_tf=True,
+        strip_accents="unicode",
+        dtype="float32"
+    )
 
 
 def build_classifiers():
-    """Classical ML algorithms; all selected estimators expose predict_proba."""
+    """Classical ML algorithms; each exposes predict_proba for the existing UI."""
     return {
         "Logistic Regression": LogisticRegression(
             max_iter=1000, class_weight="balanced", random_state=42
@@ -89,81 +86,88 @@ def build_classifiers():
 
 
 def train_model(path=DATASET):
-    """Compare classifiers on a stratified split and select by CV macro F1."""
+    """Compare six classifiers on validation data and test the selected model."""
     df = load_dataset(path)
-    X_train, X_test, y_train, y_test = train_test_split(
-        df["text_"], df["label"], test_size=0.2,
-        random_state=42, stratify=df["label"]
+    X = df["text_"].reset_index(drop=True)
+    y = df["label"].reset_index(drop=True)
+
+    # Stratified 70/15/15 split: train models, compare on validation, final test stays untouched.
+    X_train_val, X_test, y_train_val, y_test = train_test_split(
+        X, y, test_size=0.15, random_state=42, stratify=y
+    )
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train_val, y_train_val, test_size=(0.15 / 0.85),
+        random_state=42, stratify=y_train_val
     )
 
-    # Identical TF-IDF settings and splits make the model comparison consistent.
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    # Fit TF-IDF only on the training partition, then apply the same representation to validation.
+    vectorizer = make_text_vectorizer()
+    X_train_tfidf = vectorizer.fit_transform(X_train)
+    X_val_tfidf = vectorizer.transform(X_val)
+
     comparison = []
-    fitted_models = {}
-
     for name, classifier in build_classifiers().items():
-        pipeline = make_text_pipeline(classifier)
-        cv_scores = cross_val_score(
-            pipeline, X_train, y_train,
-            cv=cv, scoring="f1_macro", n_jobs=1
-        )
-        pipeline.fit(X_train, y_train)
-        predicted = pipeline.predict(X_test)
+        classifier.fit(X_train_tfidf, y_train)
+        validation_pred = classifier.predict(X_val_tfidf)
         precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
-            y_test, predicted, average="macro", zero_division=0
+            y_val, validation_pred, average="macro", zero_division=0
         )
-        precision_weighted, recall_weighted, f1_weighted, _ = precision_recall_fscore_support(
-            y_test, predicted, average="weighted", zero_division=0
-        )
-        row = {
+        comparison.append({
             "model": name,
-            "cv_macro_f1_mean": round(float(cv_scores.mean()), 4),
-            "cv_macro_f1_std": round(float(cv_scores.std()), 4),
-            "test_accuracy": round(float(accuracy_score(y_test, predicted)), 4),
-            "test_precision_macro": round(float(precision_macro), 4),
-            "test_recall_macro": round(float(recall_macro), 4),
-            "test_f1_macro": round(float(f1_macro), 4),
-            "test_f1_weighted": round(float(f1_weighted), 4)
-        }
-        comparison.append(row)
-        fitted_models[name] = pipeline
+            "validation_accuracy": round(float(accuracy_score(y_val, validation_pred)), 4),
+            "validation_precision_macro": round(float(precision_macro), 4),
+            "validation_recall_macro": round(float(recall_macro), 4),
+            "validation_f1_macro": round(float(f1_macro), 4)
+        })
 
-    # Choose only from training-set cross-validation; do not tune on held-out test data.
-    comparison.sort(key=lambda row: row["cv_macro_f1_mean"], reverse=True)
+    # Pick the model using validation macro F1. The test partition has not been used yet.
+    comparison.sort(key=lambda row: row["validation_f1_macro"], reverse=True)
     selected_name = comparison[0]["model"]
-    selected_model = fitted_models[selected_name]
-    selected_pred = selected_model.predict(X_test)
+
+    # Refit the selected algorithm on train + validation, then evaluate once on the held-out test set.
+    final_vectorizer = make_text_vectorizer()
+    X_train_val_tfidf = final_vectorizer.fit_transform(X_train_val)
+    X_test_tfidf = final_vectorizer.transform(X_test)
+    final_classifier = build_classifiers()[selected_name]
+    final_classifier.fit(X_train_val_tfidf, y_train_val)
+    test_pred = final_classifier.predict(X_test_tfidf)
 
     precision_weighted, recall_weighted, f1_weighted, _ = precision_recall_fscore_support(
-        y_test, selected_pred, average="weighted", zero_division=0
+        y_test, test_pred, average="weighted", zero_division=0
     )
     precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
-        y_test, selected_pred, average="macro", zero_division=0
+        y_test, test_pred, average="macro", zero_division=0
     )
     metrics = {
         "selected_model": selected_name,
         "test_rows": int(len(y_test)),
-        "accuracy": round(float(accuracy_score(y_test, selected_pred)), 4),
+        "accuracy": round(float(accuracy_score(y_test, test_pred)), 4),
         "precision_weighted": round(float(precision_weighted), 4),
         "recall_weighted": round(float(recall_weighted), 4),
         "f1_weighted": round(float(f1_weighted), 4),
         "precision_macro": round(float(precision_macro), 4),
         "recall_macro": round(float(recall_macro), 4),
         "f1_macro": round(float(f1_macro), 4),
-        "cv_macro_f1": comparison[0]["cv_macro_f1_mean"],
         "labels": sorted(df["label"].unique().tolist()),
-        "trained_rows": int(len(df)),
+        "trained_rows": int(len(X_train_val)),
+        "validation_rows": int(len(X_val)),
+        "test_split_rows": int(len(y_test)),
         "note": (
-            "Selected by 5-fold cross-validation macro F1 on the training split. "
-            "Test metrics are from a held-out split of this dataset only; "
-            "they do not prove the authenticity of individual real-world reviews."
+            "Six classifiers were compared on a validation split. The selected model was refitted "
+            "on training plus validation data and evaluated on a separate held-out test split. "
+            "These dataset results do not verify the authenticity of individual real-world reviews."
         )
     }
+
+    final_model = Pipeline([
+        ("tfidf", final_vectorizer),
+        ("classifier", final_classifier)
+    ])
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump({
-        "model": selected_model,
+        "model": final_model,
         "metrics": metrics,
-        "trained_rows": int(len(df)),
+        "trained_rows": int(len(X_train_val)),
         "selected_model": selected_name,
         "model_comparison": comparison
     }, MODEL_PATH, compress=3)
