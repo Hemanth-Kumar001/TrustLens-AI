@@ -9,13 +9,13 @@ TrustLens AI analyses pasted or uploaded product reviews, summarizes sentiment, 
 ## Features
 - React + Vite frontend with a cream editorial landing page and dark analysis dashboard
 - Flask API for pasted reviews and CSV/Excel uploads
-- TF-IDF + Logistic Regression review-label classifier
+- TF-IDF text classification with six compared classical ML algorithms (Logistic Regression, Multinomial Naive Bayes, Complement Naive Bayes, SGD Classifier, Decision Tree, and Random Forest)
 - Explainable keyword-based complaint and praise themes
 - Review evidence, CSV export, and browser-local history
 - Render deployment configuration
 
 ## Dataset and model notes
-The development dataset contains the columns category, rating, label, and text_, with CG and OR classes. Those are dataset labels, not proof that an individual real-world review is fraudulent or genuine. Predictions should be treated as indicators only.
+The development dataset contains the columns category, rating, label, and text_, with CG (computer-generated) and OR (original) labels. The project compares six TF-IDF classifiers using the same stratified 80/20 train/test split. A stratified 5-fold cross-validation macro F1 score on the training partition selects the model; the held-out test partition is then used for final accuracy, precision, recall, and F1 evaluation. These dataset labels are not proof that an individual real-world review is fraudulent or genuine. Predictions should be treated as indicators only.
 
 For cloud builds, the deployment bootstrap downloads a compatible version of the dataset from the Hugging Face dataset repository debojit01/fake-review-dataset (MIT-labelled dataset card) and trains the model during the build. The model is not committed as a binary artifact. The dataset source and its licence notice are documented in the application.
 
@@ -44,7 +44,8 @@ This repository includes render.yaml to define a Python API and a static fronten
 ## Limitations
 - Sentiment and complaint/praise themes use transparent heuristics; they are not a fine-tuned sentiment model.
 - Arbitrary product URLs, screenshot OCR, hosted accounts/cloud-sync, and PDF export are not included.
-- Model metrics reflect a held-out split from this dataset only and may not generalize to current reviews or other platforms.
+- Model metrics and the comparison table reflect this dataset and one held-out split; cross-validation is performed only on the training partition. Results may not generalize to current reviews, other products, or other platforms.
+- The six-model comparison is part of the classifier training workflow. It does not turn dataset labels into verified evidence of fraud or authenticity.
 
 ## Attribution
 Dataset source: https://huggingface.co/datasets/debojit01/fake-review-dataset. Review the source card before redistributing data separately. The dataset is fetched for build-time training rather than stored in this GitHub repository.
