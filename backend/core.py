@@ -4,10 +4,15 @@ import re
 import pandas as pd
 import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression, SGDClassifier
+from sklearn.naive_bayes import MultinomialNB, ComplementNB
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from sklearn.metrics import (
+    accuracy_score, precision_recall_fscore_support, f1_score,
+)
 
 BASE = Path(__file__).resolve().parents[1]
 DATASET = Path(os.environ.get("TRUSTLENS_DATASET", BASE / "data" / "fake_reviews.csv"))
@@ -44,40 +49,125 @@ def load_dataset(path=DATASET):
     return df
 
 
+def make_text_pipeline(classifier):
+    """Build one consistent TF-IDF + classifier pipeline for fair comparison."""
+    return Pipeline([
+        ("tfidf", TfidfVectorizer(
+            ngram_range=(1, 2),
+            min_df=2,
+            max_features=50000,
+            sublinear_tf=True,
+            strip_accents="unicode",
+            dtype="float32"
+        )),
+        ("classifier", classifier)
+    ])
+
+
+def build_classifiers():
+    """Classical ML algorithms; all selected estimators expose predict_proba."""
+    return {
+        "Logistic Regression": LogisticRegression(
+            max_iter=1000, class_weight="balanced", random_state=42
+        ),
+        "Multinomial Naive Bayes": MultinomialNB(alpha=0.5),
+        "Complement Naive Bayes": ComplementNB(alpha=0.5),
+        "SGD Classifier": SGDClassifier(
+            loss="log_loss", max_iter=1500, tol=1e-3,
+            class_weight="balanced", random_state=42, alpha=1e-5
+        ),
+        "Decision Tree": DecisionTreeClassifier(
+            max_depth=35, min_samples_leaf=4, max_features="sqrt",
+            class_weight="balanced", random_state=42
+        ),
+        "Random Forest": RandomForestClassifier(
+            n_estimators=80, max_depth=35, min_samples_leaf=3,
+            max_features="sqrt", class_weight="balanced_subsample",
+            random_state=42, n_jobs=-1
+        )
+    }
+
+
 def train_model(path=DATASET):
+    """Compare classifiers on a stratified split and select by CV macro F1."""
     df = load_dataset(path)
     X_train, X_test, y_train, y_test = train_test_split(
         df["text_"], df["label"], test_size=0.2,
         random_state=42, stratify=df["label"]
     )
-    model = Pipeline([
-        ("tfidf", TfidfVectorizer(
-            ngram_range=(1, 2), min_df=2, max_features=50000,
-            sublinear_tf=True, strip_accents="unicode", dtype="float32"
-        )),
-        ("classifier", LogisticRegression(
-            max_iter=600, class_weight="balanced", random_state=42
-        ))
-    ])
-    model.fit(X_train, y_train)
-    pred = model.predict(X_test)
-    precision, recall, f1, _ = precision_recall_fscore_support(
-        y_test, pred, average="weighted", zero_division=0
+
+    # Identical TF-IDF settings and splits make the model comparison consistent.
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    comparison = []
+    fitted_models = {}
+
+    for name, classifier in build_classifiers().items():
+        pipeline = make_text_pipeline(classifier)
+        cv_scores = cross_val_score(
+            pipeline, X_train, y_train,
+            cv=cv, scoring="f1_macro", n_jobs=1
+        )
+        pipeline.fit(X_train, y_train)
+        predicted = pipeline.predict(X_test)
+        precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
+            y_test, predicted, average="macro", zero_division=0
+        )
+        precision_weighted, recall_weighted, f1_weighted, _ = precision_recall_fscore_support(
+            y_test, predicted, average="weighted", zero_division=0
+        )
+        row = {
+            "model": name,
+            "cv_macro_f1_mean": round(float(cv_scores.mean()), 4),
+            "cv_macro_f1_std": round(float(cv_scores.std()), 4),
+            "test_accuracy": round(float(accuracy_score(y_test, predicted)), 4),
+            "test_precision_macro": round(float(precision_macro), 4),
+            "test_recall_macro": round(float(recall_macro), 4),
+            "test_f1_macro": round(float(f1_macro), 4),
+            "test_f1_weighted": round(float(f1_weighted), 4)
+        }
+        comparison.append(row)
+        fitted_models[name] = pipeline
+
+    # Choose only from training-set cross-validation; do not tune on held-out test data.
+    comparison.sort(key=lambda row: row["cv_macro_f1_mean"], reverse=True)
+    selected_name = comparison[0]["model"]
+    selected_model = fitted_models[selected_name]
+    selected_pred = selected_model.predict(X_test)
+
+    precision_weighted, recall_weighted, f1_weighted, _ = precision_recall_fscore_support(
+        y_test, selected_pred, average="weighted", zero_division=0
+    )
+    precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
+        y_test, selected_pred, average="macro", zero_division=0
     )
     metrics = {
+        "selected_model": selected_name,
         "test_rows": int(len(y_test)),
-        "accuracy": round(float(accuracy_score(y_test, pred)), 4),
-        "precision_weighted": round(float(precision), 4),
-        "recall_weighted": round(float(recall), 4),
-        "f1_weighted": round(float(f1), 4),
+        "accuracy": round(float(accuracy_score(y_test, selected_pred)), 4),
+        "precision_weighted": round(float(precision_weighted), 4),
+        "recall_weighted": round(float(recall_weighted), 4),
+        "f1_weighted": round(float(f1_weighted), 4),
+        "precision_macro": round(float(precision_macro), 4),
+        "recall_macro": round(float(recall_macro), 4),
+        "f1_macro": round(float(f1_macro), 4),
+        "cv_macro_f1": comparison[0]["cv_macro_f1_mean"],
         "labels": sorted(df["label"].unique().tolist()),
         "trained_rows": int(len(df)),
-        "note": "Held-out evaluation on this dataset only; not a real-world guarantee."
+        "note": (
+            "Selected by 5-fold cross-validation macro F1 on the training split. "
+            "Test metrics are from a held-out split of this dataset only; "
+            "they do not prove the authenticity of individual real-world reviews."
+        )
     }
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump({"model": model, "metrics": metrics, "trained_rows": int(len(df))}, MODEL_PATH, compress=3)
+    joblib.dump({
+        "model": selected_model,
+        "metrics": metrics,
+        "trained_rows": int(len(df)),
+        "selected_model": selected_name,
+        "model_comparison": comparison
+    }, MODEL_PATH, compress=3)
     return metrics
-
 
 def get_model():
     if not MODEL_PATH.exists():
@@ -237,5 +327,7 @@ def analyse_reviews(reviews):
         "strengths": [{"theme": k, "count": v, "share": round(v / max(total, 1) * 100, 1)} for k, v in list(praise_counts.items())[:8]],
         "reviews": output,
         "model_metrics": bundle.get("metrics") if bundle else None,
+        "selected_model": bundle.get("selected_model") if bundle else None,
+        "model_comparison": bundle.get("model_comparison", []) if bundle else [],
         "model_available": bool(bundle)
     }
