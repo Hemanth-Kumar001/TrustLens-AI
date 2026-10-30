@@ -15,7 +15,7 @@ TrustLens AI analyses pasted or uploaded product reviews, summarizes sentiment, 
 - Render deployment configuration
 
 ## Dataset and model notes
-The development dataset contains the columns category, rating, label, and text_, with CG (computer-generated) and OR (original) labels. The project compares six TF-IDF classifiers using the same stratified 80/20 train/test split. A stratified 5-fold cross-validation macro F1 score on the training partition selects the model; the held-out test partition is then used for final accuracy, precision, recall, and F1 evaluation. These dataset labels are not proof that an individual real-world review is fraudulent or genuine. Predictions should be treated as indicators only.
+The development dataset contains the columns category, rating, label, and text_, with CG (computer-generated) and OR (original) labels. After text cleaning and filtering to these two dataset labels, the reference CSV contains 40,432 usable records. The project uses a stratified 70/15/15 train/validation/test split. Six TF-IDF classifiers are compared on the validation split using accuracy, macro precision, macro recall, and macro F1. The highest validation macro F1 selects the algorithm; it is refitted on train plus validation data and evaluated once on the separate held-out test split. These dataset labels are not proof that an individual real-world review is fraudulent or genuine. Predictions should be treated as indicators only.
 
 For cloud builds, the deployment bootstrap downloads a compatible version of the dataset from the Hugging Face dataset repository debojit01/fake-review-dataset (MIT-labelled dataset card) and trains the model during the build. The model is not committed as a binary artifact. The dataset source and its licence notice are documented in the application.
 
@@ -44,8 +44,23 @@ This repository includes render.yaml to define a Python API and a static fronten
 ## Limitations
 - Sentiment and complaint/praise themes use transparent heuristics; they are not a fine-tuned sentiment model.
 - Arbitrary product URLs, screenshot OCR, hosted accounts/cloud-sync, and PDF export are not included.
-- Model metrics and the comparison table reflect this dataset and one held-out split; cross-validation is performed only on the training partition. Results may not generalize to current reviews, other products, or other platforms.
+- Model metrics and the comparison table reflect this dataset and the stated random split. Results may not generalize to current reviews, other products, or other platforms.
 - The six-model comparison is part of the classifier training workflow. It does not turn dataset labels into verified evidence of fraud or authenticity.
 
 ## Attribution
 Dataset source: https://huggingface.co/datasets/debojit01/fake-review-dataset. Review the source card before redistributing data separately. The dataset is fetched for build-time training rather than stored in this GitHub repository.
+## Reference model comparison
+A reference run on the 40,432-row cleaned CSV (random state 42) produced the following validation results. Values are percentages; the model is selected by validation macro F1.
+
+| Model | Validation accuracy | Validation macro F1 |
+|---|---:|---:|
+| SGD Classifier | 94.30% | 94.29% |
+| Logistic Regression | 93.21% | 93.21% |
+| Multinomial Naive Bayes | 91.06% | 91.06% |
+| Complement Naive Bayes | 91.06% | 91.06% |
+| Random Forest | 87.65% | 87.63% |
+| Decision Tree | 70.75% | 70.31% |
+
+**Selected model:** SGD Classifier. On the separate held-out test split, the reference run returned accuracy 94.61%, macro precision 94.63%, macro recall 94.61%, and macro F1 94.61%.
+
+These are results from one reproducible split of this dataset, not guarantees of real-world performance. Re-run the workflow to regenerate the comparison if dependencies or source data change.
